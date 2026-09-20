@@ -4,78 +4,66 @@
 export const PASOS = [
   {
     tipo: "corte",
-    skill: "Corte sujeto / predicado",
+    skill: "Sujeto y predicado",
+    skillNucleo: "Núcleo del sujeto",
     color: "--sujeto",
+    // El sujeto va al final a propósito: el que busca "las primeras palabras"
+    // se equivoca, y lo único que resuelve la duda es la concordancia.
+    palabras: ["Ayer", "ganaron", "el", "partido", "los", "chicos", "de", "sexto"],
+    corte: 4,
+    sujeto: [4, 8],
+    nucleo: 5,
     consigna: "Cortá entre el sujeto y el predicado.",
-    palabras: ["Los", "chicos", "de", "sexto", "plantaron", "un", "árbol", "en", "el", "patio"],
-    corte: 4,
-    porque: "El sujeto es «Los chicos de sexto». «De sexto» todavía habla de los chicos, así que entra en el sujeto.",
+    porque:
+      "El sujeto está al final. «Ganaron» es plural, así que concuerda con «los chicos de sexto» y no con «el partido», que es singular.",
+    consignaNucleo: "Ahora tocá el núcleo del sujeto.",
+    porqueNucleo:
+      "«Chicos» es el sustantivo del que se habla. «Los» y «de sexto» solo lo acompañan.",
   },
 
   {
-    tipo: "nucleo",
-    skill: "Núcleo del sujeto",
-    color: "--sujeto",
-    consigna: "Tocá el núcleo del sujeto.",
-    palabras: ["Los", "chicos", "de", "sexto", "plantaron", "un", "árbol", "en", "el", "patio"],
-    corte: 4,
-    correcta: 1,
-    zona: "s",
-    porque: "«Chicos» es el sustantivo del que se habla. «Los» y «de sexto» solo lo acompañan.",
-  },
-
-  {
-    tipo: "etiquetas",
+    tipo: "arreglar",
     skill: "Complementos",
     color: "--oi",
-    consigna: "Arrastrá cada etiqueta a su lugar.",
+    consigna: "Un compañero analizó así. Algo está mal: arreglalo.",
+    // Exactamente uno está mal marcado, y es el que lleva «a» adelante.
     bloques: [
-      { texto: "Martina", fijo: "sujeto", marca: "sujeto" },
-      { texto: "regaló", fijo: "verbo", marca: "verbo" },
-      { texto: "una bufanda", rol: "od" },
-      { texto: "a su abuela", rol: "oi" },
-      { texto: "en invierno", rol: "cc" },
+      { texto: "Martina", marcado: "sujeto", label: "sujeto" },
+      { texto: "regaló", marcado: "verbo", label: "verbo" },
+      { texto: "una bufanda", marcado: "od", label: "Objeto directo" },
+      { texto: "a su abuela", marcado: "cc", label: "Circ. de lugar", corregir: "oi" },
+      { texto: "en invierno", marcado: "cc", label: "Circ. de tiempo" },
     ],
-    // Tres circunstanciales y uno solo entra: hay que saber cuál, no ir en orden.
     etiquetas: [
-      { rol: "od", label: "Objeto directo", tinta: "od" },
       { rol: "oi", label: "Objeto indirecto", tinta: "oi" },
+      { rol: "od", label: "Objeto directo", tinta: "od" },
       { rol: "cc", label: "Circ. de tiempo", tinta: "cc" },
-      { rol: null, label: "Circ. de lugar", tinta: "cc" },
-      { rol: null, label: "Circ. de modo", tinta: "cc" },
+      { rol: "cc", label: "Circ. de modo", tinta: "cc" },
     ],
-    porque: "«En invierno» dice cuándo, no dónde ni cómo. Y «a su abuela» lleva «a» pero no es circunstancial: es a quién le llega el regalo.",
+    porque:
+      "«A su abuela» lleva «a» y eso confunde, pero no dice dónde: dice a quién le llega el regalo. Es objeto indirecto.",
   },
 
   {
-    tipo: "reescribir",
-    skill: "Sustitución",
+    tipo: "producir",
+    skill: "Producción",
     color: "--od",
-    consigna: "Escribila de nuevo, reemplazando «una bufanda» por su pronombre.",
-    original: ["Martina", "regaló", "una bufanda", "a su abuela", "en invierno"],
-    resalta: 2,
-    placeholder: "Martina…",
-    // La dificultad real no es elegir «la», es ubicarla antes del verbo.
-    esperado: {
-      pronombre: "la",
-      confusos: ["lo", "los", "las", "le", "les"],
-      verbo: "regalo",
-      quitar: "bufanda",
-      modelo: "Martina la regaló a su abuela en invierno.",
-    },
+    consigna: "Escribí una oración con objeto directo y circunstancial de lugar.",
+    placeholder: "Escribí acá…",
     requisitos: [
-      { id: "pronombre", label: "El pronombre correcto" },
-      { id: "posicion", label: "En el lugar correcto" },
+      { id: "oracion", label: "Es una oración" },
+      { id: "od", label: "Objeto directo" },
+      { id: "lugar", label: "Circ. de lugar" },
     ],
-    porque: "El pronombre va delante del verbo conjugado: «la regaló», nunca «regaló la».",
+    porque: "Una oración propia analizada de punta a punta: eso es saber, no repetir.",
   },
 ];
 
 export const COLOR_SKILL = {
-  "Corte sujeto / predicado": "--sujeto",
+  "Sujeto y predicado": "--sujeto",
   "Núcleo del sujeto": "--predicado",
   Complementos: "--oi",
-  "Sustitución": "--od",
+  "Producción": "--od",
 };
 
 // Simulated class, so the teacher view has something to show.
@@ -83,11 +71,11 @@ export const CLASE = {
   curso: "6.º B",
   alumnos: 24,
   filas: [
-    { skill: "Corte sujeto / predicado", pct: 79 },
-    { skill: "Núcleo del sujeto", pct: 54 },
+    { skill: "Sujeto y predicado", pct: 42 },
+    { skill: "Núcleo del sujeto", pct: 58 },
     { skill: "Complementos", pct: 46 },
-    { skill: "Sustitución", pct: 29 },
+    { skill: "Producción", pct: 71 },
   ],
   alerta:
-    "17 de 24 escribieron el pronombre detrás del verbo («regaló la»). No es un error de distracción: no saben que va adelante.",
+    "14 de 24 cortaron después de «Ayer ganaron»: buscan el sujeto al principio en vez de mirar con quién concuerda el verbo.",
 };

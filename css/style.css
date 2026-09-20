@@ -292,6 +292,12 @@ button {
 .bloque[data-rol="od"]     { --c: var(--od); }
 .bloque[data-rol="oi"]     { --c: var(--oi); }
 .bloque[data-rol="cc"]     { --c: var(--cc); }
+.bloque[data-rol="lugar"]  { --c: var(--cc); }
+.bloque[data-rol="tiempo"] { --c: var(--cc); }
+.bloque[data-rol="modo"]   { --c: var(--cc); }
+
+/* el tramo recién corregido se anuncia una vez */
+.bloque[data-arreglado] { animation: rise 420ms var(--ease) both; }
 
 .bloque i {
   display: block;
@@ -354,6 +360,10 @@ button {
   box-shadow: 0 14px 30px rgb(22 32 60 / 0.32);
   rotate: -2deg;
 }
+
+/* el análisis que la IA dibuja sobre la oración del alumno */
+.analisis { min-height: 1px; width: 100%; display: grid; justify-items: center; }
+.analisis .bloques { animation: rise 320ms var(--ease) both; }
 
 /* ============================================================
    Writing step

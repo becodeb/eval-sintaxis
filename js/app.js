@@ -1,11 +1,21 @@
 import { PASOS, CLASE, COLOR_SKILL } from "./data.js";
-import { revisarReescritura, comentarioFinal } from "./ai.js";
+import { analizarOracion, comentarioFinal } from "./ai.js";
 
 const app = document.getElementById("app");
 
 const estado = {
   i: -1, // -1 = portada
-  marcas: [], // { skill, acierto } por paso
+  marcas: [], // { skill, acierto }
+};
+
+const NOMBRE_ROL = {
+  sujeto: "sujeto",
+  verbo: "verbo",
+  od: "objeto directo",
+  oi: "objeto indirecto",
+  lugar: "circ. de lugar",
+  tiempo: "circ. de tiempo",
+  modo: "circ. de modo",
 };
 
 // ---------------------------------------------------------------- helpers --
@@ -42,19 +52,14 @@ function barraProgreso(indice) {
 const botonSeguir = (texto = "Seguir") =>
   `<button class="btn" data-tone="accent" data-seguir>${texto}</button>`;
 
-function feedback(ok, porque) {
-  return `<div class="feedback" data-r="${ok ? "ok" : "no"}">
+function mostrarFeedback(ok, porque, texto, alSeguir) {
+  app.querySelector("[data-hueco]").outerHTML = `
+    <div class="feedback" data-r="${ok ? "ok" : "no"}">
       <b>${ok ? "Bien" : "No era esa"}</b>
       <p>${esc(porque)}</p>
     </div>`;
-}
-
-function cerrar(paso, ok, porque, texto = "Seguir") {
-  app.querySelector("[data-hueco]").outerHTML = feedback(ok, porque);
   app.querySelector(".foot").innerHTML = botonSeguir(texto);
-  anotar(paso.skill, ok);
-  const b = app.querySelector("[data-seguir]");
-  if (b) b.addEventListener("click", avanzar);
+  app.querySelector("[data-seguir]").addEventListener("click", alSeguir);
 }
 
 function anotar(skill, acierto) {
@@ -91,14 +96,14 @@ function sacudir(nodo) {
 // ---------------------------------------------------------------- portada --
 
 function verPortada() {
-  const izq = "Los chicos de sexto".split(" ").map((w) => `<span class="s">${w}</span>`).join("");
-  const der = "plantaron un árbol".split(" ").map((w) => `<span class="p">${w}</span>`).join("");
+  const izq = "Ayer ganaron el partido".split(" ").map((w) => `<span class="p">${w}</span>`).join("");
+  const der = "los chicos de sexto".split(" ").map((w) => `<span class="s">${w}</span>`).join("");
   pantalla({
     accent: "--sujeto",
     stage: `
       <div class="cover-oracion">${izq}<span class="hendija"></span>${der}</div>
       <h1 class="titulo">Análisis sintáctico</h1>
-      <p class="consigna">Cuatro ejercicios. Se corrigen solos.</p>`,
+      <p class="consigna">Tres ejercicios. Se corrigen solos.</p>`,
     foot: `<button class="btn" data-empezar>Empezar</button>`,
   });
   app.querySelector("[data-empezar]").addEventListener("click", avanzar);
@@ -106,7 +111,7 @@ function verPortada() {
 
 // ------------------------------------------------------- oración en tramos --
 
-function palabrasHTML(palabras, { conCortes = false, corte = null } = {}) {
+function palabrasHTML(palabras, { conCortes = false, corte = null, sujeto = null } = {}) {
   if (corte === null) {
     let html = "";
     palabras.forEach((p, n) => {
@@ -121,36 +126,46 @@ function palabrasHTML(palabras, { conCortes = false, corte = null } = {}) {
     return `<div class="mitad">${html}</div>`;
   }
   // una vez cortada, la oración se abre en dos renglones y cada mitad se nombra
-  const mitad = (desde, hasta, half, etiqueta) =>
-    `<div class="mitad" data-half="${half}"><i class="etiq">${etiqueta}</i>` +
-    palabras
-      .slice(desde, hasta)
-      .map((p, k) => `<span class="w" data-w="${desde + k}">${esc(p)}</span>`)
-      .join("") +
-    `</div>`;
-  return mitad(0, corte, "s", "sujeto") + mitad(corte, palabras.length, "p", "predicado");
+  const [sd, sh] = sujeto;
+  const mitad = (desde, hasta) => {
+    const half = desde >= sd && desde < sh ? "s" : "p";
+    return (
+      `<div class="mitad" data-half="${half}"><i class="etiq">${half === "s" ? "sujeto" : "predicado"}</i>` +
+      palabras
+        .slice(desde, hasta)
+        .map((p, k) => `<span class="w" data-w="${desde + k}">${esc(p)}</span>`)
+        .join("") +
+      `</div>`
+    );
+  };
+  return mitad(0, corte) + mitad(corte, palabras.length);
 }
 
-// ------------------------------------------------------------------ corte --
+// --------------------------------------- 1. cortar, y después el núcleo ----
 
 function verCorte(paso) {
-  pantalla({
-    accent: paso.color,
-    top: barraProgreso(estado.i),
-    stage: `
-      <p class="consigna">${esc(paso.consigna)}</p>
-      <div class="palabras">${palabrasHTML(paso.palabras, { conCortes: true })}</div>
-      <div data-hueco></div>`,
-  });
+  const abierta = { corte: paso.corte, sujeto: paso.sujeto };
 
-  const fila = app.querySelector(".palabras");
+  const marco = (consigna, cuerpo) => {
+    pantalla({
+      accent: paso.color,
+      top: barraProgreso(estado.i),
+      stage: `
+        <p class="consigna">${esc(consigna)}</p>
+        <div class="palabras">${cuerpo}</div>
+        <div data-hueco></div>`,
+    });
+    return app.querySelector(".palabras");
+  };
+
+  // --- primer tiempo: dónde termina el predicado y empieza el sujeto
+  const fila = marco(paso.consigna, palabrasHTML(paso.palabras, { conCortes: true }));
 
   const cortar = (g) => {
     const ok = g === paso.corte;
     fila.querySelectorAll(".gap").forEach((el) => delete el.dataset.pick);
-
     const abrir = () => {
-      fila.innerHTML = palabrasHTML(paso.palabras, { corte: paso.corte });
+      fila.innerHTML = palabrasHTML(paso.palabras, abierta);
     };
     if (ok) {
       abrir();
@@ -159,55 +174,47 @@ function verCorte(paso) {
       sacudir(fila);
       setTimeout(abrir, 750);
     }
-    cerrar(paso, ok, paso.porque);
+    anotar(paso.skill, ok);
+    mostrarFeedback(ok, paso.porque, "La siguiente", verNucleo);
   };
 
   fila.querySelectorAll(".gap[data-pick]").forEach((g) =>
     activable(g, () => cortar(Number(g.dataset.g)), { unaVez: true })
   );
+
+  // --- segundo tiempo: cuál de esas palabras es el núcleo
+  function verNucleo() {
+    const fila = marco(paso.consignaNucleo, palabrasHTML(paso.palabras, abierta));
+    const [sd, sh] = paso.sujeto;
+
+    const elegir = (n) => {
+      const ok = n === paso.nucleo;
+      fila.querySelectorAll(".w").forEach((w) => delete w.dataset.pick);
+      if (!ok) sacudir(fila);
+      fila.querySelector(`.w[data-w="${paso.nucleo}"]`).classList.add("nucleo");
+      anotar(paso.skillNucleo, ok);
+      mostrarFeedback(ok, paso.porqueNucleo, "Seguir", avanzar);
+    };
+
+    fila.querySelectorAll(".w").forEach((w) => {
+      const n = Number(w.dataset.w);
+      if (n >= sd && n < sh) {
+        w.dataset.pick = "";
+        w.tabIndex = 0;
+        w.setAttribute("role", "button");
+        activable(w, () => elegir(n), { unaVez: true });
+      } else {
+        w.dataset.zone = "off";
+      }
+    });
+  }
 }
 
-// ----------------------------------------------------------------- núcleo --
+// ------------------------------------------------------------- arrastre ----
 
-function verNucleo(paso) {
-  pantalla({
-    accent: paso.color,
-    top: barraProgreso(estado.i),
-    stage: `
-      <p class="consigna">${esc(paso.consigna)}</p>
-      <div class="palabras">${palabrasHTML(paso.palabras, { corte: paso.corte })}</div>
-      <div data-hueco></div>`,
-  });
-
-  const fila = app.querySelector(".palabras");
-
-  const elegir = (n) => {
-    const ok = n === paso.correcta;
-    fila.querySelectorAll(".w").forEach((w) => delete w.dataset.pick);
-    if (!ok) sacudir(fila);
-    fila.querySelector(`.w[data-w="${paso.correcta}"]`).classList.add("nucleo");
-    cerrar(paso, ok, paso.porque);
-  };
-
-  fila.querySelectorAll(".w").forEach((w) => {
-    const n = Number(w.dataset.w);
-    const mitad = n < paso.corte ? "s" : "p";
-    if (mitad === paso.zona) {
-      w.dataset.pick = "";
-      w.tabIndex = 0;
-      w.setAttribute("role", "button");
-      activable(w, () => elegir(n), { unaVez: true });
-    } else {
-      w.dataset.zone = "off";
-    }
-  });
-}
-
-// -------------------------------------------------------------- etiquetas --
-
-// Arrastre con Pointer Events: un solo camino para dedo y mouse. Un toque sin
-// desplazamiento sigue valiendo como "tomar la etiqueta", que es lo que permite
-// resolverlo también con teclado.
+// Pointer Events: un solo camino para dedo y mouse. Un toque sin desplazamiento
+// sigue valiendo como "tomar la etiqueta", que es lo que la deja usable con
+// teclado.
 function arrastrable(chip, { soltar, resaltar }) {
   let activo = null;
 
@@ -254,18 +261,19 @@ function arrastrable(chip, { soltar, resaltar }) {
   chip.addEventListener("pointercancel", terminar);
 }
 
-function verEtiquetas(paso) {
+// ------------------------------- 2. arreglar un análisis mal hecho ---------
+
+function verArreglar(paso) {
   let enMano = null;
-  let puestas = 0;
   let errores = 0;
-  const aColocar = paso.etiquetas.filter((e) => e.rol).length;
 
   const bloques = paso.bloques
-    .map((b, n) => {
-      const fijo = b.fijo ? ` data-rol="${b.fijo}"` : ' data-pick tabindex="0" role="button"';
-      const marca = b.marca ? `<i>${esc(b.marca)}</i>` : "";
-      return `<span class="bloque" data-b="${n}"${fijo}>${esc(b.texto)}${marca}</span>`;
-    })
+    .map(
+      (b, n) =>
+        `<span class="bloque" data-b="${n}" data-rol="${b.marcado}" data-pick tabindex="0" role="button">${esc(
+          b.texto
+        )}<i>${esc(b.label)}</i></span>`
+    )
     .join("");
 
   pantalla({
@@ -276,10 +284,7 @@ function verEtiquetas(paso) {
       <div class="bloques">${bloques}</div>
       <div class="etiquetas">
         ${mezclar(paso.etiquetas)
-          .map(
-            (e) =>
-              `<button class="etiqueta" data-tinta="${e.tinta}"${e.rol ? ` data-rol="${e.rol}"` : ""}>${esc(e.label)}</button>`
-          )
+          .map((e) => `<button class="etiqueta" data-tinta="${e.tinta}" data-rol="${e.rol}">${esc(e.label)}</button>`)
           .join("")}
       </div>
       <div data-hueco></div>`,
@@ -299,24 +304,19 @@ function verEtiquetas(paso) {
 
   const colocar = (chip, bloque) => {
     const destino = paso.bloques[Number(bloque.dataset.b)];
-    if (!chip.dataset.rol || chip.dataset.rol !== destino.rol) {
+    if (!destino.corregir || chip.dataset.rol !== destino.corregir) {
       errores += 1;
       sacudir(bloque);
       return;
     }
-    bloque.dataset.rol = chip.dataset.rol;
-    bloque.insertAdjacentHTML("beforeend", `<i>${esc(chip.textContent)}</i>`);
+    bloque.dataset.rol = destino.corregir;
+    bloque.querySelector("i").textContent = chip.textContent;
+    bloque.dataset.arreglado = "";
     delete bloque.dataset.pick;
-    bloque.removeAttribute("tabindex");
-    chip.dataset.used = "";
-    delete chip.dataset.held;
-    if (enMano === chip) enMano = null;
-    puestas += 1;
-
-    if (puestas === aColocar) {
-      app.querySelectorAll(".etiqueta:not([data-used])").forEach((e) => (e.dataset.sobra = ""));
-      cerrar(paso, errores === 0, paso.porque);
-    }
+    app.querySelectorAll(".bloque").forEach((b) => delete b.dataset.pick);
+    app.querySelectorAll(".etiqueta").forEach((e) => (e.dataset.used = ""));
+    mostrarFeedback(errores === 0, paso.porque, "Seguir", avanzar);
+    anotar(paso.skill, errores === 0);
   };
 
   app.querySelectorAll(".etiqueta").forEach((chip) => {
@@ -342,28 +342,24 @@ function verEtiquetas(paso) {
   );
 }
 
-// ------------------------------------------------------------- reescribir --
+// ----------------- 3. escribir una oración y verla analizada en vivo -------
 
-function verReescribir(paso) {
-  const original = paso.original
-    .map((t, n) => `<span class="bloque"${n === paso.resalta ? ' data-rol="od"' : ""}>${esc(t)}</span>`)
-    .join("");
-
+function verProducir(paso) {
   pantalla({
     accent: paso.color,
     top: barraProgreso(estado.i),
     stage: `
       <p class="consigna">${esc(paso.consigna)}</p>
-      <div class="bloques" data-quieto>${original}</div>
       <div class="escribir">
         <textarea class="campo" rows="1" placeholder="${esc(paso.placeholder)}"
-                  spellcheck="false" autocomplete="off" autocapitalize="sentences"></textarea>
+                  spellcheck="false" autocomplete="off"></textarea>
         <div class="reqs">
           ${paso.requisitos.map((r) => `<span class="req" data-req="${r.id}">${esc(r.label)}</span>`).join("")}
         </div>
-        <p class="pista"></p>
-        <span class="fuente" hidden>revisado por IA</span>
       </div>
+      <div class="analisis" data-analisis></div>
+      <p class="pista"></p>
+      <span class="fuente" hidden></span>
       <div data-hueco></div>`,
     foot: botonSeguir("Listo"),
   });
@@ -371,8 +367,8 @@ function verReescribir(paso) {
   const campo = app.querySelector(".campo");
   const pista = app.querySelector(".pista");
   const fuente = app.querySelector(".fuente");
-  const frase = paso.original.join(" ");
-  let ultimo = { pronombre: false, posicion: false };
+  const analisis = app.querySelector("[data-analisis]");
+  let ultimo = { oracion: false, od: false, lugar: false };
   let reloj = null;
   let corte = null;
 
@@ -381,16 +377,33 @@ function verReescribir(paso) {
     campo.style.height = `${campo.scrollHeight}px`;
   };
 
+  const dibujarAnalisis = (segmentos) => {
+    if (!segmentos) {
+      analisis.innerHTML = "";
+      return;
+    }
+    analisis.innerHTML = `<div class="bloques">${segmentos
+      .map((s) => {
+        if (!s.rol) return `<span class="bloque">${esc(s.texto)}</span>`;
+        return `<span class="bloque" data-rol="${s.rol}">${esc(s.texto)}<i>${esc(
+          NOMBRE_ROL[s.rol] || s.rol
+        )}</i></span>`;
+      })
+      .join("")}</div>`;
+  };
+
   const pintar = (r) => {
     ultimo = r;
+    const hayTexto = !!campo.value.trim();
     paso.requisitos.forEach((req) => {
       const chip = app.querySelector(`[data-req="${req.id}"]`);
-      if (!campo.value.trim()) delete chip.dataset.s;
+      if (!hayTexto) delete chip.dataset.s;
       else chip.dataset.s = r[req.id] ? "si" : "no";
     });
-    pista.textContent = campo.value.trim() ? r.pista : "";
-    fuente.hidden = !campo.value.trim();
-    fuente.textContent = r.fuente === "ia" ? "revisado por IA" : "revisión sin conexión";
+    pista.textContent = hayTexto ? r.pista : "";
+    dibujarAnalisis(hayTexto ? r.segmentos : null);
+    fuente.hidden = !hayTexto;
+    fuente.textContent = r.fuente === "ia" ? "analizado por IA" : "revisión sin conexión";
     if (r.fuente === "ia") delete fuente.dataset.off;
     else fuente.dataset.off = "";
   };
@@ -400,25 +413,30 @@ function verReescribir(paso) {
     clearTimeout(reloj);
     if (corte) corte.abort();
     if (!campo.value.trim()) {
-      pintar({ pronombre: false, posicion: false, pista: "", fuente: "local" });
+      pintar({ oracion: false, od: false, lugar: false, pista: "", segmentos: null, fuente: "local" });
       return;
     }
     // Mientras no haya veredicto, el sello no puede afirmar quién revisó.
-    pista.textContent = "Revisando…";
+    pista.textContent = "Analizando tu oración…";
     fuente.hidden = true;
     reloj = setTimeout(async () => {
       corte = new AbortController();
-      pintar(await revisarReescritura(campo.value, paso.esperado, frase, corte.signal));
-    }, 700);
+      pintar(await analizarOracion(campo.value, corte.signal));
+    }, 800);
   });
 
   crecer();
   campo.focus();
   app.querySelector("[data-seguir]").addEventListener("click", () => {
-    const ok = !!(ultimo.pronombre && ultimo.posicion);
-    app.querySelector(".escribir").dataset.cerrado = "";
+    const ok = !!(ultimo.oracion && ultimo.od && ultimo.lugar);
     campo.disabled = true;
-    cerrar(paso, ok, ok ? paso.porque : `${paso.porque} Se escribe: «${paso.esperado.modelo}»`);
+    anotar(paso.skill, ok);
+    mostrarFeedback(
+      ok,
+      ok ? paso.porque : "Te faltó alguna de las dos cosas que pedía la consigna.",
+      "Ver resultado",
+      avanzar
+    );
   });
 }
 
@@ -485,12 +503,7 @@ function verTablero() {
 
 function render() {
   const paso = PASOS[estado.i];
-  ({
-    corte: verCorte,
-    nucleo: verNucleo,
-    etiquetas: verEtiquetas,
-    reescribir: verReescribir,
-  })[paso.tipo](paso);
+  ({ corte: verCorte, arreglar: verArreglar, producir: verProducir })[paso.tipo](paso);
 }
 
 verPortada();

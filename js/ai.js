@@ -1,12 +1,22 @@
-// Live correction for the rewriting step.
+// Live analysis for the writing step.
 //
-// First choice is the AI router. If it is unreachable or answers with
-// something that is not the JSON we asked for, we fall back to a local
-// rule-based check so the assessment never stalls. The UI always says which
-// of the two answered.
+// First choice is the AI router: it parses whatever sentence the student
+// invented and returns the exact spans, so the screen can draw the analysis.
+// If it is unreachable or answers something unusable, a local rule-based check
+// still decides whether the sentence meets the brief — without the drawing.
+// The UI always says which of the two answered.
 
 const ENDPOINT = "https://ai-router.mastropietro.work.gd/chat";
-const TIMEOUT = 12000;
+const TIMEOUT = 22000;
+
+const SISTEMA = `Analizás sintácticamente oraciones simples del español rioplatense para chicos de 10 a 13 años.
+Respondés SOLO un objeto JSON, sin texto alrededor y sin markdown.
+{"valida":true,"sujeto":"...","predicado":"...","nucleoSujeto":"...","nucleoPredicado":"...","partes":[{"texto":"...","funcion":"od"}],"pista":"..."}
+- "valida": false si no es una oración bimembre con verbo conjugado.
+- "sujeto" y "predicado": los tramos EXACTOS y COMPLETOS de la oración del alumno, copiados sin cambiar ni una palabra. Si el sujeto es tácito, poné "".
+- "nucleoSujeto" y "nucleoPredicado": una sola palabra cada uno, copiada tal cual.
+- "partes": solo los complementos que estén dentro del predicado, con el tramo exacto. "funcion" es uno de: "od", "oi", "lugar", "tiempo", "modo". No incluyas el verbo.
+- "pista": una sola frase corta en voseo, máximo 80 caracteres, que diga qué le falta para cumplir la consigna. Si cumple, confirmalo en pocas palabras.`;
 
 // ---------------------------------------------------------------- router ---
 
@@ -69,77 +79,157 @@ function extraerJSON(texto) {
   }
 }
 
+// ------------------------------------------------------------ segmentación --
+
+const LETRA = /[a-záéíóúüñ0-9]/i;
+
+// Ubica un tramo devuelto por el modelo dentro del texto del alumno, exigiendo
+// que caiga en límites de palabra: si no, "le" entraría dentro de "Ángeles".
+function ubicar(texto, trozo, desde = 0) {
+  const t = (trozo || "").trim();
+  if (!t) return null;
+  const bajo = texto.toLowerCase();
+  let i = bajo.indexOf(t.toLowerCase(), desde);
+  while (i !== -1) {
+    const antes = i === 0 || !LETRA.test(texto[i - 1]);
+    const fin = i + t.length;
+    const despues = fin >= texto.length || !LETRA.test(texto[fin]);
+    if (antes && despues) return { ini: i, fin };
+    i = bajo.indexOf(t.toLowerCase(), i + 1);
+  }
+  return null;
+}
+
+export function segmentar(texto, a) {
+  const marcas = [];
+  const agregar = (trozo, rol, desde = 0) => {
+    const m = ubicar(texto, trozo, desde);
+    if (m) marcas.push({ ...m, rol });
+  };
+
+  agregar(a.sujeto, "sujeto");
+  const pred = ubicar(texto, a.predicado);
+  const base = pred ? pred.ini : 0;
+  agregar(a.nucleoPredicado, "verbo", base);
+  for (const p of a.partes || []) agregar(p.texto, p.funcion, base);
+
+  marcas.sort((x, y) => x.ini - y.ini || y.fin - x.fin);
+  const limpias = [];
+  let hasta = 0;
+  for (const m of marcas) {
+    if (m.ini < hasta) continue; // se solapa con una marca ya aceptada
+    limpias.push(m);
+    hasta = m.fin;
+  }
+
+  const segs = [];
+  let cursor = 0;
+  for (const m of limpias) {
+    if (m.ini > cursor) segs.push({ texto: texto.slice(cursor, m.ini), rol: null });
+    segs.push({ texto: texto.slice(m.ini, m.fin), rol: m.rol });
+    cursor = m.fin;
+  }
+  if (cursor < texto.length) segs.push({ texto: texto.slice(cursor), rol: null });
+  return segs.map((s) => ({ ...s, texto: s.texto.trim() })).filter((s) => s.texto);
+}
+
 // ----------------------------------------------------------------- local ---
 
-const sinTildes = (s) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const sinTildes = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-const enPalabras = (texto) =>
-  sinTildes(texto)
-    .replace(/[.,;:!?¡¿«»"'()]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
+const DETERMINANTES = new Set(
+  "el la los las un una unos unas mi mis tu tus su sus este esta estos estas ese esa esos esas aquel aquella dos tres cuatro cinco seis siete ocho nueve diez muchos muchas varios varias todo toda todos todas".split(" ")
+);
+const PREPOSICIONES = new Set(
+  "a ante bajo con contra de desde durante en entre hacia hasta para por segun sin sobre tras".split(" ")
+);
+const PREP_LUGAR = new Set("en sobre bajo hacia desde hasta entre tras contra".split(" "));
+const NOMBRES_TIEMPO = new Set(
+  "invierno verano otono primavera enero febrero marzo abril mayo junio julio agosto septiembre setiembre octubre noviembre diciembre lunes martes miercoles jueves viernes sabado domingo manana tarde noche dia dias semana semanas mes meses ano anos rato momento hora horas minuto minutos vacaciones navidad recreo siglo epoca".split(" ")
+);
+const VERBOS = new Set(
+  "es son esta estan era eran hay tiene tienen tengo va van voy fue fueron soy somos hace hacen hizo hicieron dio dieron doy da dan vio vieron ve ven pone ponen puso quiere quieren quiso sabe saben supo puede pueden pudo dice dicen dijo trae traen trajo viene vienen vino sale salen salio oye oyen oyo juega juegan jugo duerme duermen durmio come comen comio corre corren corrio".split(" ")
+);
+const TERMINACIONES =
+  /(o|as|a|amos|an|es|e|emos|en|imos|aba|abas|abamos|aban|ia|ias|iamos|ian|aste|aron|i|iste|io|ieron|are|aras|ara|aran|ere|era|eran|ire|ira|iran)$/;
 
-function revisarLocal(texto, esp) {
-  const palabras = enPalabras(texto);
-  const quitado = !palabras.includes(esp.quitar);
-  const tienePronombre = palabras.includes(esp.pronombre);
-  const equivocado = esp.confusos.find((p) => palabras.includes(p));
+function pareceVerbo(p) {
+  if (VERBOS.has(p)) return true;
+  if (p.length < 4 || DETERMINANTES.has(p) || PREPOSICIONES.has(p)) return false;
+  return TERMINACIONES.test(p);
+}
 
-  const pronombre = tienePronombre && quitado;
-  const iPron = palabras.indexOf(esp.pronombre);
-  const iVerbo = palabras.indexOf(esp.verbo);
-  const posicion = pronombre && iPron >= 0 && iVerbo === iPron + 1;
+function revisarLocal(texto) {
+  const palabras = texto.trim().replace(/[.,;:!?¡¿«»"']/g, " ").split(/\s+/).filter(Boolean);
+  const plano = palabras.map(sinTildes);
+  const iVerbo = plano.findIndex((p, i) => i > 0 && pareceVerbo(p));
+  const oracion = palabras.length >= 3 && iVerbo > 0;
 
-  let pista = "Así es: reemplaza a «una bufanda» y va delante del verbo.";
-  if (palabras.length < 3) pista = "Escribí la oración entera, empezando por «Martina».";
-  else if (!quitado) pista = "«Una bufanda» tiene que desaparecer: el pronombre ocupa su lugar.";
-  else if (!tienePronombre && equivocado)
-    pista = `«${equivocado}» no va. Fijate si «una bufanda» es masculino o femenino, uno o varios.`;
-  else if (!tienePronombre) pista = "Te falta el pronombre que reemplaza a «una bufanda».";
-  else if (!posicion) pista = "El pronombre va antes del verbo: «la regaló», no «regaló la».";
+  let od = false;
+  if (oracion) {
+    for (let i = iVerbo + 1; i < plano.length; i++) {
+      if (PREPOSICIONES.has(plano[i])) {
+        i++;
+        continue;
+      }
+      if (DETERMINANTES.has(plano[i]) && plano[i + 1] && !PREPOSICIONES.has(plano[i + 1])) {
+        od = true;
+        break;
+      }
+    }
+  }
 
-  return { pronombre, posicion, pista, fuente: "local" };
+  let lugar = false;
+  for (let i = 0; i < plano.length - 1; i++) {
+    if (!PREP_LUGAR.has(plano[i])) continue;
+    const resto = plano.slice(i + 1, i + 4);
+    if (resto.some((w) => NOMBRES_TIEMPO.has(w))) continue;
+    if (resto.length) {
+      lugar = true;
+      break;
+    }
+  }
+
+  let pista = "Cumple: tiene objeto directo y dice dónde pasa.";
+  if (!oracion) pista = "Te falta un verbo conjugado para que sea una oración.";
+  else if (!od) pista = "Agregá qué recibe la acción, sin preposición adelante.";
+  else if (!lugar) pista = "Decí dónde pasa: en la plaza, sobre la mesa, hacia el río.";
+
+  return { oracion, od, lugar, pista, segmentos: null, fuente: "local" };
 }
 
 // ------------------------------------------------------------------ api ----
 
-export async function revisarReescritura(texto, esp, original, signal) {
-  const local = revisarLocal(texto, esp);
-  if (enPalabras(texto).length < 3) return local;
+export async function analizarOracion(texto, signal) {
+  if (texto.trim().split(/\s+/).filter(Boolean).length < 3) return revisarLocal(texto);
 
   const corte = new AbortController();
   const reloj = setTimeout(() => corte.abort(), TIMEOUT);
   if (signal) signal.addEventListener("abort", () => corte.abort(), { once: true });
 
-  const sistema = `Sos un docente de Prácticas del Lenguaje que corrige a chicos de 10 a 13 años, en español rioplatense.
-La oración original es: "${original}"
-La consigna fue reescribirla reemplazando "una bufanda" por su pronombre. La respuesta modelo es: "${esp.modelo}"
-Recibís lo que escribió el alumno y respondés SOLO con un objeto JSON, sin texto alrededor y sin markdown.
-Formato exacto:
-{"pronombre":true,"posicion":true,"pista":"..."}
-- "pronombre": true si usó el pronombre correcto ("la") y ya no aparece "una bufanda".
-- "posicion": true si el pronombre quedó delante del verbo conjugado.
-- "pista": una sola frase corta en voseo, máximo 90 caracteres, que diga qué le falta. Si está todo bien, confirmalo en pocas palabras. No le des la respuesta escrita si todavía se equivoca.`;
-
   try {
     const crudo = await pedirAlRouter(
       [
-        { role: "system", content: sistema },
+        { role: "system", content: SISTEMA },
         { role: "user", content: texto.trim() },
       ],
       corte.signal
     );
-    const json = extraerJSON(crudo);
-    if (!json || typeof json.pronombre !== "boolean") throw new Error("respuesta no parseable");
+    const a = extraerJSON(crudo);
+    if (!a || typeof a.valida !== "boolean") throw new Error("respuesta no parseable");
+
+    const partes = Array.isArray(a.partes) ? a.partes : [];
+    const segmentos = a.valida ? segmentar(texto.trim(), a) : null;
     return {
-      pronombre: !!json.pronombre,
-      posicion: !!json.posicion,
-      pista: String(json.pista ?? "").slice(0, 140) || local.pista,
+      oracion: !!a.valida,
+      od: partes.some((p) => p.funcion === "od"),
+      lugar: partes.some((p) => p.funcion === "lugar"),
+      pista: String(a.pista ?? "").slice(0, 140),
+      segmentos: segmentos && segmentos.some((s) => s.rol) ? segmentos : null,
       fuente: "ia",
     };
   } catch {
-    return local;
+    return revisarLocal(texto);
   } finally {
     clearTimeout(reloj);
   }

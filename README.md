@@ -15,34 +15,34 @@ En red local se abre en `http://<ip-de-la-máquina>:4321`, por ejemplo
 
 Hace falta un servidor (no `file://`) porque el JS usa módulos ES.
 
-## Las cuatro mecánicas
+## Los tres ejercicios
 
 | # | Mecánica | Qué evalúa | Por qué no se puede en papel ni en un Form |
 |---|----------|------------|-------------------------------------------|
-| 1 | Cortar la oración | Límite sujeto / predicado | El corte es estructural: se valida la posición exacta, no una respuesta teórica |
-| 2 | Tocar una palabra | Núcleo del sujeto | Separa núcleo de modificador directo, que es donde se cae media clase |
-| 3 | Arrastrar etiquetas | OD, OI, circunstancial | Se asigna función. Van cinco etiquetas mezcladas y solo tres entran: hay tres circunstanciales (tiempo, lugar, modo) y uno solo corresponde |
-| 4 | Reescribir la oración | Sustitución pronominal | **La prueba de fuego.** El alumno escribe la oración con el pronombre. Lo difícil no es elegir «la», es saber que va delante del verbo. Corrige la IA |
-
-Se sacaron a propósito dos ejercicios: bimembre/unimembre (es opción múltiple, eso ya
-lo hace un Google Form) y el núcleo del predicado (siempre es el verbo conjugado, no
-discrimina a nadie).
+| 1 | Cortar la oración, y después tocar el núcleo | Sujeto y predicado | El sujeto va **al final** (*«Ayer ganaron el partido los chicos de sexto»*). El que lo busca al principio se cae; lo único que resuelve la duda es con quién concuerda el verbo |
+| 2 | Arreglar un análisis ajeno, arrastrando | Complementos | «Un compañero analizó así, algo está mal». Detectar el error es un nivel más alto que aplicar la regla. El tramo mal marcado es *«a su abuela»*, que lleva «a» y parece circunstancial |
+| 3 | Escribir una oración propia | Producción | La IA **analiza la oración que el alumno acaba de inventar** y dibuja el análisis en vivo, con los mismos colores del resto. Ningún examen en papel puede corregir una oración que nadie escribió de antemano |
 
 ## La corrección con IA
 
-El paso 4 le manda al router (`https://ai-router.mastropietro.work.gd/chat`) la oración
-original, la respuesta modelo y lo que escribió el alumno, y espera un JSON con dos
-booleanos y una pista.
+El paso 3 le manda al router (`https://ai-router.mastropietro.work.gd/chat`) la oración
+del alumno y espera un JSON con el sujeto, el predicado, los núcleos y cada complemento
+con su tramo exacto. Esos tramos se vuelven a ubicar sobre el texto original —exigiendo
+límites de palabra, para que «le» no caiga dentro de «Ángeles»— y se dibujan como
+bloques.
 
-**Si el router no responde, la evaluación no se frena.** Cae a un verificador local
-por reglas (`revisarLocal` en `js/ai.js`) que comprueba que el pronombre sea el
-correcto, que «una bufanda» haya desaparecido y que el pronombre quede inmediatamente
-antes del verbo. La pantalla dice siempre cuál de los dos contestó: *revisado por IA* o
-*revisión sin conexión*, y mientras está esperando no dice ninguna de las dos.
+**Si el router no responde, la evaluación no se frena.** Cae a un verificador local por
+reglas (`revisarLocal` en `js/ai.js`) que decide si la oración cumple la consigna,
+aunque sin el dibujo del análisis. La pantalla dice siempre cuál de los dos contestó:
+*analizado por IA* o *revisión sin conexión*, y mientras espera no dice ninguna de las
+dos.
 
-El router responde en aproximadamente un segundo y da mejores pistas que las reglas:
-ante *«Martina regaló la a su abuela»* contesta «el pronombre tiene que ir antes del
-verbo» sin regalarle la respuesta escrita.
+### Lo que el modelo no hace bien
+
+Es un modelo gratuito y en los casos finos se equivoca: *«juegan al fútbol»* a veces lo
+marca como objeto directo cuando en rigor es complemento de régimen. Acierta la gran
+mayoría de las oraciones que escribe un chico de esa edad, pero para una evaluación de
+verdad convendría un modelo mejor, que es cambiar una línea en `js/ai.js`.
 
 ## Estructura
 
@@ -51,7 +51,7 @@ index.html
 css/style.css     tokens, pantallas, animaciones
 js/data.js        banco de ejercicios y datos de la clase simulada
 js/ai.js          cliente SSE del router + verificador local de respaldo
-js/app.js         máquina de estados, arrastre y las cuatro pantallas
+js/app.js         máquina de estados, arrastre y las tres pantallas
 ```
 
 Para cambiar las oraciones o agregar ejercicios alcanza con tocar `js/data.js`.
