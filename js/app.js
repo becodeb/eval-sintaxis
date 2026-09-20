@@ -1,5 +1,5 @@
-import { PASOS, CLASE, COLOR_SKILL } from "./data.js";
-import { analizarOracion, comentarioFinal } from "./ai.js";
+import { PASOS, CLASE, COLOR_SKILL } from "./data.js?v=__V__";
+import { analizarOracion, comentarioFinal } from "./ai.js?v=__V__";
 
 const app = document.getElementById("app");
 
