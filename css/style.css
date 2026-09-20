@@ -1,0 +1,573 @@
+/* ============================================================
+   Tokens
+   ============================================================ */
+:root {
+  --board: #eef0f6;
+  --sheet: #ffffff;
+  --ink: #16203c;
+  --ink-soft: #626d8c;
+  --line: #d6dbe8;
+
+  --sujeto: #1b4fd8;
+  --predicado: #d7263d;
+  --od: #1da362;
+  --oi: #7a3fd9;
+  --cc: #c98a00;
+
+  --ok: #1da362;
+  --no: #d7263d;
+
+  /* the accent of the current screen; every screen overrides it */
+  --accent: var(--ink);
+
+  --display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --ui: "Instrument Sans", system-ui, -apple-system, sans-serif;
+
+  --gap: clamp(0.5rem, 1.4vw, 1rem);
+  --pad: clamp(1rem, 3.5vw, 2.75rem);
+  --radius: 14px;
+  --ease: cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--board);
+  color: var(--ink);
+  font-family: var(--ui);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   Shell
+   ============================================================ */
+.app {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: var(--pad);
+  gap: var(--gap);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2rem;
+}
+
+.dots { display: flex; gap: 8px; align-items: center; }
+.dots i {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--line);
+  display: block;
+  transition: background 240ms var(--ease), transform 240ms var(--ease);
+}
+.dots i[data-s="done"] { background: var(--ink-soft); }
+.dots i[data-s="now"]  { background: var(--accent); transform: scale(1.5); }
+
+.top-label {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.stage {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(1rem, 3.4vh, 2.5rem);
+  text-align: center;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.5rem 0;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 4.25rem;
+}
+
+/* ============================================================
+   Type
+   ============================================================ */
+.consigna {
+  font-family: var(--ui);
+  font-size: clamp(1.05rem, 2.3vw, 1.6rem);
+  font-weight: 500;
+  color: var(--ink-soft);
+  max-width: 34ch;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.oracion {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(1.75rem, 5.4vw, 4.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0 0.05em;
+  max-width: 20ch;
+}
+
+.titulo {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(1.5rem, 3.4vw, 2.5rem);
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: clamp(1rem, 1.6vw, 1.15rem);
+  padding: 0.95em 2.2em;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--board);
+  transition: transform 160ms var(--ease), background 160ms var(--ease);
+}
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(0); }
+.btn[data-tone="accent"] { background: var(--accent); }
+.btn[data-ghost] {
+  background: none;
+  color: var(--ink-soft);
+  padding: 0.95em 1.4em;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* ============================================================
+   Words, gaps, cutting
+   ============================================================ */
+.palabras {
+  display: grid;
+  justify-items: center;
+  gap: 0.15em;
+  width: 100%;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(1.45rem, 3.9vw, 3rem);
+  line-height: 1.08;
+}
+
+.mitad {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  max-width: 24ch;
+  position: relative;
+  transition: color 300ms var(--ease);
+}
+.mitad[data-half="s"] { color: var(--sujeto); }
+.mitad[data-half="p"] { color: var(--predicado); }
+
+/* the half's name only appears once the cut is made */
+.etiq {
+  font-family: var(--ui);
+  font-size: 0.3em;
+  font-weight: 600;
+  font-style: normal;
+  align-self: center;
+  margin-right: 0.8em;
+  padding: 0.35em 0.9em;
+  border-radius: 999px;
+  color: var(--sheet);
+  animation: rise 360ms var(--ease) both;
+}
+.mitad[data-half="s"] .etiq { background: var(--sujeto); }
+.mitad[data-half="p"] .etiq { background: var(--predicado); }
+.gap[data-mal]::after { opacity: 1; inset: -10% 40%; background: var(--no); }
+
+.w {
+  padding: 0.06em 0.08em;
+  border-radius: 6px;
+  transition: color 200ms var(--ease), background 200ms var(--ease),
+              box-shadow 200ms var(--ease);
+}
+.w[data-pick] { cursor: pointer; }
+.w[data-pick]:hover { background: var(--sheet); }
+.w[data-zone="off"] { color: var(--line); pointer-events: none; }
+
+/* the cut handle lives between two words */
+.gap {
+  position: relative;
+  width: 0.34em;
+  align-self: stretch;
+  min-height: 1em;
+  border-radius: 4px;
+}
+.gap::after {
+  content: "";
+  position: absolute;
+  inset: 10% 42%;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 160ms var(--ease), inset 160ms var(--ease),
+              background 160ms var(--ease);
+}
+.gap[data-pick] { cursor: pointer; }
+.gap[data-pick]::after { opacity: 0.16; }
+.gap[data-pick]:hover::after { opacity: 0.55; inset: -8% 38%; }
+.gap[data-cut] { width: 0.7em; }
+.gap[data-cut]::after { opacity: 1; inset: -10% 40%; background: var(--ink); }
+
+.nucleo { box-shadow: inset 0 -0.15em 0 currentColor; }
+
+/* ============================================================
+   Blocks + labels — notación de corchete: una regla de color bajo el
+   tramo y su nombre debajo, como se marca en el pizarrón
+   ============================================================ */
+.bloques {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.34rem;
+  max-width: min(100%, 34ch);
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(1.15rem, 2.9vw, 2.15rem);
+}
+
+.bloque {
+  display: inline-grid;
+  justify-items: center;
+  padding: 0.16em 0.4em 0.14em;
+  border-radius: 9px;
+  line-height: 1.12;
+  background: var(--sheet);
+  color: var(--ink);
+  transition: transform 180ms var(--ease), box-shadow 180ms var(--ease),
+              outline-color 140ms var(--ease);
+  outline: 3px dashed transparent;
+  outline-offset: 3px;
+}
+.bloque[data-pick] { cursor: pointer; }
+.bloque[data-pick]:hover { transform: translateY(-3px); }
+.bloque[data-sobre] {
+  outline-color: var(--ink-soft);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 22px rgb(22 32 60 / 0.16);
+}
+
+.bloque[data-rol="sujeto"] { --c: var(--sujeto); }
+.bloque[data-rol="verbo"]  { --c: var(--predicado); }
+.bloque[data-rol="od"]     { --c: var(--od); }
+.bloque[data-rol="oi"]     { --c: var(--oi); }
+.bloque[data-rol="cc"]     { --c: var(--cc); }
+
+.bloque i {
+  display: block;
+  width: 100%;
+  margin-top: 0.14em;
+  padding-top: 0.14em;
+  border-top: 3px solid var(--c);
+  color: var(--c);
+  font-size: 0.36em;
+  font-family: var(--ui);
+  font-weight: 600;
+  font-style: normal;
+  white-space: nowrap;
+  animation: rise 300ms var(--ease) both;
+}
+
+/* la oración de referencia del último ejercicio no se toca */
+.bloques[data-quieto] .bloque[data-rol] {
+  background: var(--c);
+  color: var(--sheet);
+}
+
+.etiquetas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem;
+  max-width: min(100%, 44rem);
+}
+
+.etiqueta {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: clamp(0.88rem, 1.6vw, 1.1rem);
+  padding: 0.65em 1.25em;
+  border-radius: 999px;
+  color: var(--sheet);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: transform 160ms var(--ease), opacity 220ms var(--ease);
+}
+.etiqueta[data-tinta="od"] { background: var(--od); }
+.etiqueta[data-tinta="oi"] { background: var(--oi); }
+.etiqueta[data-tinta="cc"] { background: var(--cc); }
+.etiqueta:hover { transform: translateY(-3px); }
+.etiqueta[data-held] { transform: scale(1.07); box-shadow: 0 8px 20px rgb(22 32 60 / 0.28); }
+.etiqueta[data-llevando] { opacity: 0.25; }
+.etiqueta[data-used] { opacity: 0.16; pointer-events: none; }
+.etiqueta[data-sobra] { opacity: 0.3; pointer-events: none; }
+
+/* el clon que sigue al dedo */
+.fantasma {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  pointer-events: none;
+  transform-origin: top left;
+  box-shadow: 0 14px 30px rgb(22 32 60 / 0.32);
+  rotate: -2deg;
+}
+
+/* ============================================================
+   Writing step
+   ============================================================ */
+.escribir {
+  width: min(100%, 46rem);
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+}
+
+.campo {
+  width: 100%;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(1.3rem, 3.2vw, 2.4rem);
+  line-height: 1.2;
+  text-align: center;
+  background: var(--sheet);
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.55em 0.6em;
+  color: var(--ink);
+  resize: none;
+  overflow: hidden;
+  transition: border-color 200ms var(--ease);
+}
+.campo:focus { outline: none; border-color: var(--accent); }
+.campo:disabled { opacity: 0.7; border-color: var(--line); }
+.campo::placeholder { color: var(--line); }
+
+.reqs { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; }
+.req {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: clamp(0.85rem, 1.5vw, 1rem);
+  font-weight: 500;
+  padding: 0.55em 1em;
+  border-radius: 999px;
+  background: var(--sheet);
+  color: var(--ink-soft);
+  border: 2px solid transparent;
+  transition: all 220ms var(--ease);
+}
+.req::before {
+  content: "";
+  width: 0.7em; height: 0.7em;
+  border-radius: 50%;
+  background: var(--line);
+  transition: background 220ms var(--ease);
+}
+.req[data-s="si"] { color: var(--ok); border-color: var(--ok); }
+.req[data-s="si"]::before { background: var(--ok); }
+.req[data-s="no"] { color: var(--no); }
+.req[data-s="no"]::before { background: var(--no); }
+
+.pista {
+  font-size: clamp(0.95rem, 1.7vw, 1.15rem);
+  color: var(--ink-soft);
+  max-width: 44ch;
+  min-height: 1.5em;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.fuente {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+}
+.fuente::before {
+  content: "";
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ok);
+}
+.fuente[data-off]::before { background: var(--cc); }
+
+/* ============================================================
+   Feedback
+   ============================================================ */
+.feedback {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: center;
+  max-width: 40ch;
+  animation: rise 320ms var(--ease) both;
+}
+.feedback b {
+  font-family: var(--display);
+  font-size: clamp(1.15rem, 2.4vw, 1.6rem);
+  font-weight: 700;
+}
+.feedback[data-r="ok"] b { color: var(--ok); }
+.feedback[data-r="no"] b { color: var(--no); }
+.feedback p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: clamp(0.95rem, 1.7vw, 1.1rem);
+  line-height: 1.45;
+}
+
+/* ============================================================
+   Result
+   ============================================================ */
+.puntaje {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(5rem, 22vw, 14rem);
+  line-height: 0.82;
+  letter-spacing: -0.05em;
+}
+.puntaje small {
+  font-size: 0.24em;
+  color: var(--ink-soft);
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+.tabla {
+  width: min(100%, 40rem);
+  display: grid;
+  gap: 0.45rem;
+  text-align: left;
+}
+.fila {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: var(--sheet);
+  border-radius: 10px;
+  border-left: 6px solid var(--c, var(--line));
+  font-size: clamp(0.9rem, 1.6vw, 1.05rem);
+  font-weight: 500;
+}
+.fila b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.fila[data-r="no"] b { color: var(--no); }
+.fila[data-r="ok"] b { color: var(--ok); }
+
+/* teacher board */
+.barra {
+  position: relative;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--line);
+  grid-column: 1 / -1;
+  overflow: hidden;
+}
+.barra i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--c, var(--ink));
+  border-radius: 999px;
+  width: var(--w, 0%);
+  transition: width 700ms var(--ease);
+}
+.fila[data-board] { grid-template-columns: 1fr auto; row-gap: 0.5rem; }
+.alerta {
+  width: min(100%, 40rem);
+  text-align: left;
+  padding: 1rem 1.15rem;
+  border-radius: 10px;
+  background: var(--sheet);
+  border-left: 6px solid var(--no);
+  font-size: clamp(0.95rem, 1.7vw, 1.1rem);
+  line-height: 1.45;
+}
+.alerta b { font-weight: 600; }
+
+/* ============================================================
+   Cover
+   ============================================================ */
+.cover-oracion {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(1.8rem, 6.5vw, 5rem);
+  line-height: 1;
+  letter-spacing: -0.025em;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 0.26em;
+  max-width: 18ch;
+}
+.cover-oracion .s { color: var(--sujeto); }
+.cover-oracion .p { color: var(--predicado); }
+.cover-oracion .hendija {
+  width: 0.18em;
+  animation: abrir 1100ms 500ms var(--ease) both;
+}
+
+@keyframes abrir { from { width: 0.18em; } to { width: 1.1em; } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  45% { transform: translateX(6px); }
+  70% { transform: translateX(-3px); }
+}
+.shake { animation: shake 380ms var(--ease); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+@media (max-width: 40rem) {
+  .consigna { max-width: 20ch; }
+  .foot { min-height: 3.5rem; }
+}
