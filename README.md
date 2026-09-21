@@ -25,7 +25,7 @@ Hace falta un servidor (no `file://`) porque el JS usa módulos ES.
 
 ## La corrección con IA
 
-El paso 3 le manda al router (`https://ai-router.mastropietro.work.gd/chat`) la oración
+El paso 3 le manda al router (`https://ai-router.becode.com.ar/chat`) la oración
 del alumno y espera un JSON con el sujeto, el predicado, los núcleos y cada complemento
 con su tramo exacto. Esos tramos se vuelven a ubicar sobre el texto original —exigiendo
 límites de palabra, para que «le» no caiga dentro de «Ángeles»— y se dibujan como

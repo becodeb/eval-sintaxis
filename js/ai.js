@@ -6,7 +6,7 @@
 // still decides whether the sentence meets the brief — without the drawing.
 // The UI always says which of the two answered.
 
-const ENDPOINT = "https://ai-router.mastropietro.work.gd/chat";
+const ENDPOINT = "https://ai-router.becode.com.ar/chat";
 const TIMEOUT = 22000;
 
 const SISTEMA = `Analizás sintácticamente oraciones simples del español rioplatense para chicos de 10 a 13 años.
